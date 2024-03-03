@@ -50,12 +50,7 @@ static unsigned short crc16(const unsigned char *buf, unsigned long count)
 //--------------------------------------------------------------
 static int32_t Receive_Byte (unsigned char *c, uint32_t timeout_ms)
 {
-	//unsigned char ch;
-  //int len = uart_read_bytes(EX_UART_NUM, &ch, 1, timeout / portTICK_RATE_MS);
-  //int len = getchar_timeout_ms(TIMEOUT_MS_VALUE);
-
   unsigned long start = millis();
-  int getCharResult = 1;
   int len = 0;
 
   while (1) {
@@ -68,7 +63,6 @@ static int32_t Receive_Byte (unsigned char *c, uint32_t timeout_ms)
     
     if (millis() - start > timeout_ms)
     {
-      getCharResult = -1;
       break;
     }
   }
@@ -76,13 +70,6 @@ static int32_t Receive_Byte (unsigned char *c, uint32_t timeout_ms)
   if (len <= 0) return -1;
 
   return 0;
-  //---------------------------------
-  // int len = Serial.readBytes(c, 1);
-  // if (len <= 0) return -1;
-
-  // //*c = (unsigned char)len;
-  // return 0;
-  //---------------------------------
 }
 
 //------------------------
@@ -281,7 +268,7 @@ int Ymodem_Receive (unsigned char* buf, unsigned int maxsize, char* getname)
                       }
                       *getname = '\0';
                     }
-                    for (i = 0, file_ptr = packet_data + PACKET_HEADER; (*file_ptr != 0) && (i < packet_length);) {
+                    for (i = 0, file_ptr = packet_data + PACKET_HEADER; (*file_ptr != 0) && ((int)i < packet_length);) {
                       file_ptr++;
                     }
                     for (i = 0, file_ptr ++; (*file_ptr != ' ') && (i < FILE_SIZE_LENGTH);) {
@@ -372,71 +359,4 @@ int Ymodem_Receive (unsigned char* buf, unsigned int maxsize, char* getname)
   }
 exit:
   return size;
-}
-
-//------------------------------------------------------------------------------------
-static void Ymodem_PrepareIntialPacket(uint8_t *data, char *fileName, uint32_t length)
-{
-  uint16_t tempCRC;
-
-  memset(data, 0, PACKET_SIZE + PACKET_HEADER);
-  // Make first three packet
-  data[0] = SOH;
-  data[1] = 0x00;
-  data[2] = 0xff;
-  
-  // add filename
-  sprintf((char *)(data+PACKET_HEADER), "%s", fileName);
-
-  //add file site
-  sprintf((char *)(data + PACKET_HEADER + strlen((char *)(data+PACKET_HEADER)) + 1), "%d", length);
-  data[PACKET_HEADER + strlen((char *)(data+PACKET_HEADER)) +
-	   1 + strlen((char *)(data + PACKET_HEADER + strlen((char *)(data+PACKET_HEADER)) + 1))] = ' ';
-  
-  // add crc
-  tempCRC = crc16(&data[PACKET_HEADER], PACKET_SIZE);
-  data[PACKET_SIZE + PACKET_HEADER] = tempCRC >> 8;
-  data[PACKET_SIZE + PACKET_HEADER + 1] = tempCRC & 0xFF;
-}
-
-//-------------------------------------------------
-static void Ymodem_PrepareLastPacket(uint8_t *data)
-{
-  uint16_t tempCRC;
-  
-  memset(data, 0, PACKET_SIZE + PACKET_HEADER);
-  data[0] = SOH;
-  data[1] = 0x00;
-  data[2] = 0xff;
-  tempCRC = crc16(&data[PACKET_HEADER], PACKET_SIZE);
-  //tempCRC = crc16_le(0, &data[PACKET_HEADER], PACKET_SIZE);
-  data[PACKET_SIZE + PACKET_HEADER] = tempCRC >> 8;
-  data[PACKET_SIZE + PACKET_HEADER + 1] = tempCRC & 0xFF;
-}
-
-//-----------------------------------------------------------------------------------------
-static void Ymodem_PreparePacket(uint8_t *data, uint8_t pktNo, uint32_t sizeBlk, FILE *ffd)
-{
-  uint16_t i, size;
-  uint16_t tempCRC;
-  
-  data[0] = STX;
-  data[1] = (pktNo & 0x000000ff);
-  data[2] = (~(pktNo & 0x000000ff));
-
-  size = sizeBlk < PACKET_1K_SIZE ? sizeBlk :PACKET_1K_SIZE;
-  // Read block from file
-  if (size > 0) {
-	  size = fread(data + PACKET_HEADER, 1, size, ffd);
-  }
-
-  if ( size  < PACKET_1K_SIZE) {
-    for (i = size + PACKET_HEADER; i < PACKET_1K_SIZE + PACKET_HEADER; i++) {
-      data[i] = 0x00; // EOF (0x1A) or 0x00
-    }
-  }
-  tempCRC = crc16(&data[PACKET_HEADER], PACKET_1K_SIZE);
-  //tempCRC = crc16_le(0, &data[PACKET_HEADER], PACKET_1K_SIZE);
-  data[PACKET_1K_SIZE + PACKET_HEADER] = tempCRC >> 8;
-  data[PACKET_1K_SIZE + PACKET_HEADER + 1] = tempCRC & 0xFF;
 }
